@@ -77,6 +77,9 @@ model Product {
   @@unique([merchantId, sku])
 }
 
+// Postgres ไม่สร้าง index ให้ foreign key อัตโนมัติเหมือน MySQL — index ด้านล่างเพิ่มไว้เพื่อ
+// ป้องกันการ scan ทั้งตารางเมื่อ join/filter ตาม FK หรือ status ตอนข้อมูลเริ่มเยอะขึ้นในการใช้งานจริง
+
 model Location {
   id            String         @id @default(uuid())
   zone          String
@@ -98,6 +101,7 @@ model Inventory {
   lastCountedAt DateTime?
 
   @@unique([productId, locationId])
+  @@index([locationId])
 }
 
 model Order {
@@ -114,6 +118,9 @@ model Order {
   shipments       Shipment[]
   returns         Return[]
   createdAt       DateTime    @default(now())
+
+  @@index([merchantId])
+  @@index([status])
 }
 
 model OrderItem {
@@ -125,6 +132,9 @@ model OrderItem {
   qty           Int
   unitPrice     Decimal        @db.Decimal(10, 2)
   pickListItems PickListItem[]
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model PickList {
@@ -136,6 +146,8 @@ model PickList {
   status     PickListStatus @default(PENDING)
   items      PickListItem[]
   createdAt  DateTime       @default(now())
+
+  @@index([status])
 }
 
 model PickListItem {
@@ -147,6 +159,10 @@ model PickListItem {
   locationId  String
   location    Location  @relation(fields: [locationId], references: [id])
   pickedQty   Int       @default(0)
+
+  @@index([pickListId])
+  @@index([orderItemId])
+  @@index([locationId])
 }
 
 model Shipment {
@@ -157,6 +173,8 @@ model Shipment {
   trackingNo String?
   status     ShipmentStatus @default(PENDING)
   shippedAt  DateTime?
+
+  @@index([orderId])
 }
 
 model Invoice {
@@ -171,6 +189,9 @@ model Invoice {
   items       InvoiceItem[]
   issuedAt    DateTime?
   createdAt   DateTime      @default(now())
+
+  @@index([merchantId])
+  @@index([status])
 }
 
 model InvoiceItem {
@@ -181,6 +202,8 @@ model InvoiceItem {
   qty         Int
   unitPrice   Decimal @db.Decimal(10, 2)
   amount      Decimal @db.Decimal(10, 2)
+
+  @@index([invoiceId])
 }
 
 model Return {
@@ -191,6 +214,9 @@ model Return {
   status     ReturnStatus @default(RECEIVED)
   items      ReturnItem[]
   receivedAt DateTime     @default(now())
+
+  @@index([orderId])
+  @@index([status])
 }
 
 model ReturnItem {
@@ -202,6 +228,9 @@ model ReturnItem {
   qty       Int
   condition String
   action    ReturnAction
+
+  @@index([returnId])
+  @@index([productId])
 }
 
 model Role {
@@ -212,16 +241,21 @@ model Role {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  roleId       String
-  role         Role          @relation(fields: [roleId], references: [id])
-  name         String
-  email        String        @unique
-  passwordHash String
-  status       String        @default("active")
-  pickLists    PickList[]
-  activityLogs ActivityLog[]
-  createdAt    DateTime      @default(now())
+  id                  String        @id @default(uuid())
+  roleId              String
+  role                Role          @relation(fields: [roleId], references: [id])
+  name                String
+  email               String        @unique
+  passwordHash        String
+  status              String        @default("active")
+  // นับจำนวนครั้งที่ล็อกอินผิดติดต่อกัน และล็อกบัญชีชั่วคราวเมื่อเกิน threshold กัน brute-force
+  failedLoginAttempts Int           @default(0)
+  lockedUntil         DateTime?
+  pickLists           PickList[]
+  activityLogs        ActivityLog[]
+  createdAt           DateTime      @default(now())
+
+  @@index([roleId])
 }
 
 model ActivityLog {
@@ -232,4 +266,8 @@ model ActivityLog {
   entityType String
   entityId   String
   createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }

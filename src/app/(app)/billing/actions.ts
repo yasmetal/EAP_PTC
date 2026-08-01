@@ -2,29 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAccess } from "@/lib/require-session";
 import { logActivity } from "@/lib/activity-log";
 import { invoiceCreateSchema, invoiceItemInputSchema } from "@/lib/validation";
 import { FULFILLMENT_FEE_PER_UNIT, generateInvoiceNo } from "@/lib/billing";
 
-export async function createInvoice(formData: FormData) {
-  const session = await requireAccess("billing", "write");
-
-  const data = invoiceCreateSchema.parse({
-    merchantId: formData.get("merchantId"),
-    periodStart: formData.get("periodStart"),
-    periodEnd: formData.get("periodEnd"),
-  });
-
-  const periodStart = new Date(data.periodStart);
-  const periodEnd = new Date(data.periodEnd);
-  periodEnd.setHours(23, 59, 59, 999);
-
-  const invoice = await prisma.$transaction(async (tx) => {
+async function createInvoiceOnce(
+  merchantId: string,
+  periodStart: Date,
+  periodEnd: Date,
+  userId: string
+) {
+  return prisma.$transaction(async (tx) => {
     const shippedOrders = await tx.order.findMany({
       where: {
-        merchantId: data.merchantId,
+        merchantId,
         status: "SHIPPED",
         shipments: { some: { shippedAt: { gte: periodStart, lte: periodEnd } } },
       },
@@ -46,7 +40,7 @@ export async function createInvoice(formData: FormData) {
 
     const created = await tx.invoice.create({
       data: {
-        merchantId: data.merchantId,
+        merchantId,
         invoiceNo,
         periodStart,
         periodEnd,
@@ -57,15 +51,46 @@ export async function createInvoice(formData: FormData) {
     });
 
     await logActivity(
-      { userId: session.user.id, action: "CREATE", entityType: "Invoice", entityId: created.id },
+      { userId, action: "CREATE", entityType: "Invoice", entityId: created.id },
       tx
     );
 
     return created;
   });
+}
+
+export async function createInvoice(formData: FormData) {
+  const session = await requireAccess("billing", "write");
+
+  const data = invoiceCreateSchema.parse({
+    merchantId: formData.get("merchantId"),
+    periodStart: formData.get("periodStart"),
+    periodEnd: formData.get("periodEnd"),
+  });
+
+  const periodStart = new Date(data.periodStart);
+  const periodEnd = new Date(data.periodEnd);
+  periodEnd.setHours(23, 59, 59, 999);
+
+  // generateInvoiceNo นับเลขที่ออกไปแล้วในวันนี้แล้วบวก 1 — ถ้าสร้างใบแจ้งหนี้พร้อมกันสองรายการ
+  // อาจนับเลขเดียวกันและชน unique constraint ของ invoiceNo ได้ จึง retry ด้วยเลขใหม่เมื่อชนกัน
+  const MAX_ATTEMPTS = 5;
+  let invoice: Awaited<ReturnType<typeof createInvoiceOnce>> | undefined;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      invoice = await createInvoiceOnce(data.merchantId, periodStart, periodEnd, session.user.id);
+      break;
+    } catch (error) {
+      const isDuplicateInvoiceNo =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        (error.meta?.target as string[] | undefined)?.includes("invoiceNo");
+      if (!isDuplicateInvoiceNo || attempt === MAX_ATTEMPTS) throw error;
+    }
+  }
 
   revalidatePath("/billing");
-  redirect(`/billing/${invoice.id}`);
+  redirect(`/billing/${invoice!.id}`);
 }
 
 export async function addInvoiceItem(invoiceId: string, formData: FormData) {

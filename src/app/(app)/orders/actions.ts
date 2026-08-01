@@ -83,13 +83,27 @@ export async function allocateOrder(orderId: string) {
       });
 
       for (const item of order.items) {
+        // เช็คแล้วค่อยจอง (check-then-act) ไม่ปลอดภัยเมื่อมีการจัดสรรออเดอร์พร้อมกันหลายรายการ
+        // เพราะ read ระหว่าง transaction ไม่ได้ lock แถวไว้ จึงอาจจองสต็อกเกินจริงได้
+        // ใช้ conditional UPDATE ต่อตำแหน่งแทน ให้ Postgres รับประกัน atomicity ผ่าน row lock
         const candidates = await tx.inventory.findMany({
           where: { productId: item.productId },
-          include: { location: true },
           orderBy: { location: { binCode: "asc" } },
         });
-        const chosen = candidates.find((inv) => inv.quantity - inv.reservedQty >= item.qty);
-        if (!chosen) {
+
+        let reservedLocationId: string | null = null;
+        for (const candidate of candidates) {
+          const affected = await tx.$executeRaw`
+            UPDATE "Inventory"
+            SET "reservedQty" = "reservedQty" + ${item.qty}
+            WHERE "id" = ${candidate.id} AND "quantity" - "reservedQty" >= ${item.qty}
+          `;
+          if (affected > 0) {
+            reservedLocationId = candidate.locationId;
+            break;
+          }
+        }
+        if (!reservedLocationId) {
           throw new InsufficientStockError(item.product.name);
         }
 
@@ -97,13 +111,8 @@ export async function allocateOrder(orderId: string) {
           data: {
             pickListId: pickList.id,
             orderItemId: item.id,
-            locationId: chosen.locationId,
+            locationId: reservedLocationId,
           },
-        });
-
-        await tx.inventory.update({
-          where: { id: chosen.id },
-          data: { reservedQty: { increment: item.qty } },
         });
       }
 

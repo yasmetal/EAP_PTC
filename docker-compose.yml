@@ -27,7 +27,8 @@ services:
     environment:
       DATABASE_URL: postgresql://erp:erp_dev_password@postgres:5432/erp_fulfillment
       NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-production}
+      # ต้องกำหนด NEXTAUTH_SECRET ผ่าน .env ก่อนรัน — ไม่มีค่า default เพื่อกันรันโดยไม่ได้ตั้งรหัสลับจริง
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?กรุณากำหนดค่า NEXTAUTH_SECRET ใน .env ก่อนรัน (เช่น openssl rand -base64 32)}
     ports:
       - "3000:3000"
 
