@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EAP_PTC — Warehouse Fulfillment ERP
 
-## Getting Started
+An internal, Thai-language ERP for a fulfillment/warehouse operation: inbound receiving, order
+allocation, barcode pick/pack, shipping, billing & invoicing, returns, reporting, and an
+activity log — all behind role-based access control.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- [Next.js](https://nextjs.org) (App Router, Server Actions, Turbopack)
+- TypeScript (strict)
+- PostgreSQL + [Prisma](https://www.prisma.io)
+- [NextAuth](https://authjs.dev) (credentials provider, JWT sessions, RBAC)
+- Tailwind CSS + shadcn/ui
+- Zod for validation
+- Docker Compose for local Postgres / containerized deploy
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Auth & RBAC** — 5 roles (warehouse staff, admin/CS, supervisor, accounting, owner), enforced
+  in middleware, server components, and server actions.
+- **Merchants, products, inventory** — CRUD + per-bin stock tracking.
+- **Inbound receiving** — barcode-driven stock intake.
+- **Orders** — creation, stock allocation, pick-list generation.
+- **Pick & pack** — barcode scanning UX for warehouse staff.
+- **Shipping** — courier/tracking capture, atomic stock reservation (race-safe under concurrent
+  allocation).
+- **Billing & invoicing** — auto-populated line items from shipped orders, draft → issued → paid
+  workflow, Thai-formatted PDF invoices.
+- **Returns** — intake → inspection → resolution, with optional restock-to-bin.
+- **Reporting dashboard** and **activity log** viewer.
+- **User & role management** admin UI, with failed-login lockout.
+- Every stock/financial mutation is transactional and recorded to an activity log.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Getting started
 
-## Learn More
+1. Copy the env template and set a real secret:
 
-To learn more about Next.js, take a look at the following resources:
+   ```bash
+   cp .env.example .env
+   # generate a value for NEXTAUTH_SECRET, e.g.:
+   openssl rand -base64 32
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. Start Postgres (or run the whole stack) with Docker Compose:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+   ```bash
+   docker compose up -d postgres
+   ```
 
-## Deploy on Vercel
+3. Install dependencies, run migrations, and seed sample data:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+   ```bash
+   npm install
+   npm run db:migrate
+   npm run db:seed
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+4. Start the dev server:
+
+   ```bash
+   npm run dev
+   ```
+
+Seeded login credentials (see `prisma/seed.ts`) are printed to the console after seeding.
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server |
+| `npm run build` | Production build |
+| `npm run start` | Start the production server |
+| `npm run lint` | Lint |
+| `npm run db:migrate` | Apply Prisma migrations |
+| `npm run db:seed` | Seed sample data |
+| `npm run db:studio` | Open Prisma Studio |
+
+## Deployment
+
+`docker compose up` builds and runs the full stack (Postgres + app) using the multi-stage
+`Dockerfile` (standalone Next.js output). `NEXTAUTH_SECRET` must be set in the environment or the
+container will refuse to start.
