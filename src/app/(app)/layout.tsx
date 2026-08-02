@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/require-session";
 import { canRead, ROLE_LABELS, type ModuleKey, type RoleName } from "@/lib/permissions";
+import { BrandLockup } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { signOutAction } from "./actions";
 
@@ -31,11 +32,10 @@ export default async function AppLayout({
   return (
     <div className="flex min-h-screen flex-1 flex-col md:flex-row">
       <aside className="border-b bg-sidebar text-sidebar-foreground md:w-60 md:shrink-0 md:border-b-0 md:border-r">
-        <div className="flex items-center justify-between px-4 py-3 md:block md:py-4">
-          <div>
-            <p className="font-semibold leading-tight">ERP คลังสินค้า</p>
-            <p className="text-xs text-muted-foreground">{ROLE_LABELS[role]}</p>
-          </div>
+        <div className="px-4 py-3 md:py-4">
+          <Link href="/dashboard" className="block rounded-md">
+            <BrandLockup subtitle={ROLE_LABELS[role]} priority />
+          </Link>
         </div>
         <nav className="flex flex-wrap gap-1 px-2 pb-3 md:flex-col md:pb-4">
           {visibleNav.map((item) => (

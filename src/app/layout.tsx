@@ -16,6 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ระบบ ERP คลังสินค้า",
   description: "ระบบจัดการคลังสินค้ารับฝากและจัดส่งสินค้า (Fulfillment)",
+  icons: { icon: "/ptn-logo.jpg" },
 };
 
 export default function RootLayout({

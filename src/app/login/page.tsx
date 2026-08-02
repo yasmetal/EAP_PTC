@@ -1,4 +1,5 @@
 import { loginAction } from "./actions";
+import { BrandMark } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,8 @@ export default async function LoginPage({
   const { error } = await searchParams;
 
   return (
-    <div className="flex min-h-screen flex-1 items-center justify-center bg-muted/30 px-4">
+    <div className="flex min-h-screen flex-1 flex-col items-center justify-center gap-6 bg-muted/30 px-4 py-10">
+      <BrandMark className="size-20 rounded-2xl p-2 shadow-sm" priority />
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>เข้าสู่ระบบ ERP คลังสินค้า</CardTitle>
