@@ -174,7 +174,61 @@ model Shipment {
   status     ShipmentStatus @default(PENDING)
   shippedAt  DateTime?
 
+  // สถานะล่าสุดที่ดึงมาจาก API ผู้ให้บริการขนส่ง (ตอนนี้รองรับไปรษณีย์ไทย)
+  // เก็บแยกจาก `status` เพราะ `status` เป็นสถานะภายในของเรา (4 ค่า) ส่วนของขนส่งมีรหัสละเอียดกว่ามาก
+  trackingStatusCode String?
+  trackingStatusText String?
+  trackingLocation   String?
+  // เวลาที่เกิดเหตุการณ์ล่าสุดตามที่ขนส่งแจ้ง ต่างจาก trackingCheckedAt ที่เป็นเวลาที่เราไปถามล่าสุด
+  trackingUpdatedAt  DateTime?
+  trackingCheckedAt  DateTime?
+  // ข้อความ error ล่าสุดจากการซิงก์ เก็บไว้ให้หน้าจอบอกผู้ใช้ได้ว่าทำไมสถานะไม่อัปเดต
+  trackingError      String?
+  // เวลาที่ลงทะเบียนเลขพัสดุนี้กับ webhook ของไปรษณีย์ไทยสำเร็จ (null = ยังไม่ได้ลงทะเบียน)
+  trackingHookedAt   DateTime?
+
+  events TrackingEvent[]
+
   @@index([orderId])
+  @@index([trackingNo])
+  @@index([status, trackingCheckedAt])
+}
+
+/**
+ * ไทม์ไลน์เหตุการณ์ของพัสดุแต่ละชิ้น หนึ่งแถวคือหนึ่งสถานะที่ขนส่งบันทึกไว้
+ * แยกตารางแทนการเก็บเป็น JSON ก้อนเดียวใน Shipment เพื่อให้ query/รายงานตามช่วงเวลาได้
+ */
+model TrackingEvent {
+  id         String   @id @default(uuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  barcode    String
+  statusCode String
+  statusText String
+  location   String?
+  postcode   String?
+  eventAt    DateTime
+  // "api" = ได้จากการ poll, "webhook" = ขนส่ง push เข้ามา ใช้ตรวจว่าช่องทางไหนทำงานอยู่
+  source     String   @default("api")
+  createdAt  DateTime @default(now())
+
+  // กันเหตุการณ์ซ้ำเมื่อ poll ซ้ำหรือ webhook ส่งซ้ำ — ชุดนี้คือ natural key ของหนึ่งเหตุการณ์
+  @@unique([shipmentId, statusCode, eventAt])
+  @@index([shipmentId, eventAt])
+  @@index([barcode])
+}
+
+/**
+ * ที่เก็บ access token ของ API ภายนอกแบบใช้ร่วมกันทุก instance
+ * บน Vercel แต่ละ request อาจอยู่คนละ instance การ cache ไว้ในหน่วยความจำอย่างเดียว
+ * จะทำให้ขอ token ใหม่ทุก cold start และเปลืองโควตาของผู้ให้บริการ
+ */
+model ServiceToken {
+  id        String   @id @default(uuid())
+  service   String   @unique
+  token     String
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
 }
 
 model Invoice {

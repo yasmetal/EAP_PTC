@@ -5,6 +5,13 @@
 
 const THAI_DATE_LOCALE = "th-TH-u-ca-buddhist";
 
+/**
+ * ต้องกำหนดโซนเวลาให้ชัดเจน ไม่ปล่อยให้ใช้ค่าเริ่มต้นของเครื่อง
+ * เพราะหน้าเว็บ render ฝั่ง server และ server บน Vercel ตั้งเป็น UTC
+ * ถ้าไม่ระบุ วันที่-เวลาทุกจุดในระบบจะเพี้ยนไป 7 ชั่วโมงเมื่อขึ้น production
+ */
+const THAI_TIME_ZONE = "Asia/Bangkok";
+
 export function formatThaiDate(date: Date | string | null | undefined): string {
   if (!date) return "-";
   const d = typeof date === "string" ? new Date(date) : date;
@@ -12,6 +19,7 @@ export function formatThaiDate(date: Date | string | null | undefined): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: THAI_TIME_ZONE,
   }).format(d);
 }
 
@@ -24,6 +32,7 @@ export function formatThaiDateTime(date: Date | string | null | undefined): stri
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: THAI_TIME_ZONE,
   }).format(d);
 }
 

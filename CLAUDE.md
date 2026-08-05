@@ -33,6 +33,32 @@ NextAuth v5 (credentials, JWT) + Tailwind/shadcn/ui + Zod + Docker Compose (ส�
 - Production DB ถูก seed เฉพาะ 5 Role rows (ตรงกับ `ROLE_PERMISSIONS`) + 1 owner user เท่านั้น
   **ไม่มีข้อมูลตัวอย่าง (demo data)** เหมือนใน `prisma/seed.ts` ที่ใช้กับ local dev
 
+## การติดตามพัสดุไปรษณีย์ไทย (Track & Trace API)
+เชื่อมต่อไว้ครบ 3 ช่องทางตามที่ API ของไปรษณีย์ไทยเปิดให้ใช้ ทุกช่องทางเขียนข้อมูลผ่านฟังก์ชันเดียวกัน
+(`applyTrackingEvents` ใน `src/lib/tracking-sync.ts`) ผลลัพธ์จึงเหมือนกันไม่ว่าข้อมูลจะเข้ามาทางไหน
+1. **Pull รายชิ้น** — ปุ่ม "อัปเดตสถานะ" ในหน้ารายละเอียดออเดอร์
+2. **Pull ทั้งหมด** — ปุ่มในหน้ารายการออเดอร์ + `GET /api/cron/tracking` (Vercel Cron, ดู `vercel.json`)
+3. **Push (webhook)** — `POST /api/tracking/webhook` ไปรษณีย์ไทยยิงเข้ามาเองเมื่อพัสดุมีความเคลื่อนไหว
+   ต้องกดปุ่ม "ลงทะเบียนรับแจ้งเตือนอัตโนมัติ" เพื่อผูกเลขพัสดุกับ webhook ก่อน
+4. **ลิงก์หน้าเว็บสาธารณะ** — ใช้ได้เสมอแม้ยังไม่ได้ตั้งค่า API key
+
+**Env vars ที่ต้องตั้ง** (ทั้ง 3 ตัวไม่บังคับ ถ้าไม่ตั้งระบบยังทำงานปกติแต่ไม่ดึงสถานะอัตโนมัติ):
+- `THAILANDPOST_API_KEY` — API key ถาวรจากการสมัครที่ https://track.thailandpost.co.th
+- `THAILANDPOST_WEBHOOK_SECRET` — ค่าที่สุ่มขึ้นเอง ใช้ยืนยันว่า webhook เป็นของจริง
+  ตั้ง callback URL ฝั่งไปรษณีย์ไทยเป็น `https://<โดเมน>/api/tracking/webhook?token=<ค่านี้>`
+- `CRON_SECRET` — Vercel แนบมาให้เองเป็น `Authorization: Bearer` เมื่อรัน cron
+
+**ข้อควรรู้**
+- เส้นทางใต้ `/api` ไม่ผ่าน proxy ที่บังคับ login (ดู matcher ใน `src/proxy.ts`) ทั้ง webhook และ cron
+  จึงตรวจ secret เอง และถ้าไม่ได้ตั้ง secret ไว้จะ **ปฏิเสธทุกคำขอ** (fail closed) ไม่ใช่ปล่อยผ่าน
+- ไปรษณีย์ไทยไม่ได้เปิดเผยตารางรหัสสถานะครบทุกตัวเป็นเอกสารสาธารณะ โค้ดจึงตัดสินสถานะจาก
+  **ข้อความภาษาไทย** (ดู `classifyEvent`) ไม่ใช่ตัวเลขรหัส แต่ยังเก็บรหัสไว้ทุกเหตุการณ์
+  ถ้าภายหลังได้ตารางรหัสมา ให้แก้ที่ `classifyEvent` จุดเดียว
+- Vercel Hobby รัน cron ได้ **วันละครั้งเท่านั้น** ตารางใน `vercel.json` จึงตั้งไว้ที่ 08:00 น.
+  (01:00 UTC) การอัปเดตระหว่างวันต้องพึ่ง webhook หรือกดปุ่มเอง
+- `.env.example` โดน `.gitignore` (บรรทัด `.env*`) จับไปด้วย จึงไม่ได้ถูก commit — ถ้าอยากให้
+  ติดไปกับ repo ต้องเพิ่ม `!.env.example` ใน `.gitignore`
+
 ## ข้อควรระวัง / gap ที่ยังไม่ได้แก้
 - Migration ทั้ง 3 ไฟล์ใน `prisma/migrations/` ถูก apply เข้า production ผ่าน Supabase MCP
   (`apply_migration`, รัน SQL ตรง ๆ) **ไม่ได้ผ่าน `prisma migrate deploy`** ทำให้ตาราง
